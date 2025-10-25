@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Corelynx PRD Explorer</title>
+    <!-- Chosen Palette: Warm Stone & Teal -->
+    <!-- Application Structure Plan: Designed a top-down SPA with a sticky sidebar navigation for quick access to PRD sections (Intro, Personas, Requirements, KPIs, etc.). The main content area uses cards and filterable lists to make the requirements digestible. The goal is to allow a stakeholder (e.g., developer, designer) to quickly find the requirements relevant to them (e.g., filter stories by 'Partner') rather than scrolling a static document. -->
+    <!-- Visualization & Content Choices: Report Info: User Story distribution by role (5 Auth, 10 Partner, 8 Agent). Goal: Show requirement breakdown. Viz: Donut Chart. Interaction: Hover to see counts. Justification: Quick visual summary of work distribution. Library: Chart.js. | Report Info: KPI Targets (e.g., Acceptance > 85%, Retention > 70%). Goal: Visualize target goals. Viz: Horizontal Bar Chart for each KPI. Interaction: Tooltip on hover. Justification: Makes numerical targets more tangible. Library: Chart.js. | Report Info: User Stories. Goal: Organize/Filter. Presentation: Interactive list with JS filtering. Interaction: Click buttons (Partner, Agent) to show/hide relevant stories. Justification: Core usability for developers. Method: Vanilla JS. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        stone: {
+                            50: '#f8f7f6',
+                            100: '#f3f1ef',
+                            200: '#e8e5e1',
+                            300: '#d9d5cd',
+                            400: '#b0a99f',
+                            500: '#8c8273',
+                            600: '#6e655a',
+                            700: '#574f46',
+                            800: '#453f38',
+                            900: '#38322d',
+                        },
+                        teal: {
+                            600: '#0d9488',
+                            700: '#0f766e',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+        html { 
+            scroll-behavior: smooth; 
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8f7f6; 
+        }
+        
+        .nav-link {
+            display: block;
+            padding: 0.75rem 1rem;
+            border-radius: 0.5rem;
+            font-weight: 500;
+            color: #574f46;
+            transition: all 0.2s ease-in-out;
+        }
+        .nav-link:hover {
+            background-color: #f3f1ef;
+            color: #0f766e;
+        }
+        .nav-link.active {
+            background-color: #0d9488;
+            color: #ffffff;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 400px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+            max-height: 400px;
+        }
+
+        .kpi-chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 80px;
+            max-height: 100px;
+        }
+
+        .story-card {
+            background-color: #ffffff;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            margin-bottom: 1rem;
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+            overflow: hidden;
+        }
+        
+        .story-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+        }
+
+        .story-card-id {
+            font-size: 0.875rem;
+            font-weight: 700;
+            color: #0d9488;
+            background-color: #ccfbf1;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+        }
+        
+        .story-card-body {
+            color: #453f38;
+        }
+        
+        .story-card-body strong {
+            color: #0f766e;
+        }
+
+        .section-header {
+            font-size: 2.25rem;
+            font-weight: 700;
+            color: #38322d;
+            border-bottom: 2px solid #e8e5e1;
+            padding-bottom: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .section-intro {
+            font-size: 1.125rem;
+            color: #574f46;
+            margin-bottom: 2rem;
+            max-width: 4xl;
+        }
+
+    </style>
+</head>
+<body class="bg-stone-50 text-stone-900">
+
+    <div class="flex flex-col md:flex-row">
+        
+        <nav class="w-full md:w-64 md:fixed md:top-0 md:left-0 md:h-screen bg-white shadow-lg p-5 overflow-y-auto z-10 border-r border-stone-200">
+            <h1 class="text-2xl font-bold text-teal-700 mb-6">Corelynx PRD</h1>
+            <ul class="space-y-2" id="navigation">
+                <li><a href="#intro" class="nav-link active">Introduction</a></li>
+                <li><a href="#personas" class="nav-link">Personas</a></li>
+                <li><a href="#high-level" class="nav-link">High-Level</a></li>
+                <li><a href="#user-stories" class="nav-link">User Stories</a></li>
+                <li><a href="#nfrs" class="nav-link">NFRs</a></li>
+                <li><a href="#tech" class="nav-link">Tech & Deployment</a></li>
+                <li><a href="#kpis" class="nav-link">Success Metrics</a></li>
+            </ul>
+        </nav>
+
+        <main class="w-full md:ml-64 p-6 md:p-10">
+
+            <section id="intro" class="mb-16">
+                <h2 class="section-header">Introduction & Vision</h2>
+                <p class="section-intro">This section outlines the project's core purpose, its guiding vision, and the high-level goals we aim to achieve. It serves as the foundation for all requirements and decisions that follow.</p>
+                <div class="grid md:grid-cols-2 gap-6">
+                    <div class="bg-white p-6 rounded-lg shadow-md border border-stone-100">
+                        <h3 class="text-xl font-semibold text-teal-700 mb-2">Project Goal</h3>
+                        <p class="text-stone-700">To create a seamless, digitized platform that connects logistics <strong>Partners (Requestors)</strong> with certified <strong>Logistics Agents (Fulfillers)</strong> for efficient, regional-specific shipment execution and comprehensive performance tracking.</p>
+                    </div>
+                    <div class="bg-white p-6 rounded-lg shadow-md border border-stone-100">
+                        <h3 class="text-xl font-semibold text-teal-700 mb-2">Product Vision</h3>
+                        <p class="text-stone-700">Corelynx Solution will be the definitive logistics matching and tracking platform, empowering Partners with transparent cost and performance data, while providing Agents with real-time, relevant shipment opportunities.</p>
+                    </div>
+                </div>
+            </section>
+
+            <section id="personas" class="mb-16">
+                <h2 class="section-header">Target Audience & Personas</h2>
+                <p class="section-intro">To build a successful product, we must first understand our users. This section breaks down the three key roles interacting with the system, their primary goals, and the specific pain points we aim to solve for each.</p>
+                <div class="grid md:grid-cols-3 gap-6">
+                    <div class="bg-white p-6 rounded-lg shadow-md border border-stone-100">
+                        <h3 class="text-xl font-semibold text-stone-800 mb-3">Partner (Requestor)</h3>
+                        <p class="text-stone-700 mb-2"><strong>Goal:</strong> Quickly arrange a shipment, find a qualified Agent, and accurately track costs and completion metrics.</p>
+                        <p class="text-stone-700"><strong>Pain Points:</strong> Inconsistent agent quality, lack of real-time visibility, difficult manual reporting.</p>
+                    </div>
+                    <div class="bg-white p-6 rounded-lg shadow-md border border-stone-100">
+                        <h3 class="text-xl font-semibold text-stone-800 mb-3">Logistics Agent (Fulfiller)</h3>
+                        <p class="text-stone-700 mb-2"><strong>Goal:</strong> Discover and accept local, profitable shipments efficiently, and manage workflow on the go.</p>
+                        <p class="text-stone-700"><strong>Pain Points:</strong> Wasted travel time, complex cost negotiation, slow payment confirmation.</p>
+                    </div>
+                    <div class="bg-white p-6 rounded-lg shadow-md border border-stone-100">
+                        <h3 class="text-xl font-semibold text-stone-800 mb-3">Administrator (Internal)</h3>
+                        <p class="text-stone-700 mb-2"><strong>Goal:</strong> Manage user accounts, onboard/verify new Agents, set regional boundaries, and monitor system health.</p>
+                        <p class="text-stone-700"><strong>Pain Points:</strong> Manual approval processes, inability to audit agent performance history.</p>
+                    </div>
+                </div>
+            </section>
+
+            <section id="high-level" class="mb-16">
+                <h2 class="section-header">High-Level Requirements</h2>
+                <p class="section-intro">This section defines the main components of the Corelynx Solution. The system is divided into a central web portal for management and two distinct mobile applications tailored to each user role.</p>
+                <div class="grid md:grid-cols-3 gap-6">
+                    <div class="bg-white p-6 rounded-lg shadow-md border border-stone-100">
+                        <h3 class="text-xl font-semibold text-stone-800 mb-3">Web Portal</h3>
+                        <p class="text-stone-700"><strong>Target:</strong> All Users</p>
+                        <p class="text-stone-700"><strong>Function:</strong> Central login, Admin panel, Partner Reporting, Agent Profile Management.</p>
+                    </div>
+                    <div class="bg-white p-6 rounded-lg shadow-md border border-stone-100">
+                        <h3 class="text-xl font-semibold text-stone-800 mb-3">Partner App (APK A)</h3>
+                        <p class="text-stone-700"><strong>Target:</strong> Partner (Requestor)</p>
+                        <p class="text-stone-700"><strong>Function:</strong> Shipment creation, Agent selection, real-time tracking, immediate feedback.</p>
+                    </div>
+                    <div class="bg-white p-6 rounded-lg shadow-md border border-stone-100">
+                        <h3 class="text-xl font-semibold text-stone-800 mb-3">Agent App (APK B)</h3>
+                        <p class="text-stone-700"><strong>Target:</strong> Logistics Agent (Fulfiller)</p>
+                        <p class="text-stone-700"><strong>Function:</strong> View regional job feed, Accept/Decline, Update Status, Cost negotiation.</p>
+                    </div>
+                </div>
+            </section>
+
+            <section id="user-stories" class="mb-16">
+                <h2 class="section-header">Detailed User Stories</h2>
+                <p class="section-intro">This is the core of the PRD, detailing all functional requirements as user stories. Use the filters to explore requirements by role, and see the work distribution in the chart below.</p>
+                
+                <div class="flex justify-center mb-8 space-x-2" id="story-filters">
+                    <button class="filter-btn active bg-teal-600 text-white px-4 py-2 rounded-full font-medium" data-filter="all">All Stories</button>
+                    <button class="filter-btn bg-white text-stone-700 px-4 py-2 rounded-full font-medium border border-stone-200" data-filter="auth">Auth & Web</button>
+                    <button class="filter-btn bg-white text-stone-700 px-4 py-2 rounded-full font-medium border border-stone-200" data-filter="partner">Partner</button>
+                    <button class="filter-btn bg-white text-stone-700 px-4 py-2 rounded-full font-medium border border-stone-200" data-filter="agent">Agent</button>
+                </div>
+
+                <div class="chart-container mb-12">
+                    <canvas id="storyDonutChart"></canvas>
+                </div>
+
+                <div id="stories-container" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                </div>
+            </section>
+
+            <section id="nfrs" class="mb-16">
+                <h2 class="section-header">Non-Functional Requirements</h2>
+                <p class="section-intro">Beyond features, these requirements define the quality, performance, and security standards our system must meet to be considered robust and reliable.</p>
+                <div class="bg-white rounded-lg shadow-md overflow-hidden border border-stone-100">
+                    <table class="w-full text-left">
+                        <thead class="bg-stone-100">
+                            <tr>
+                                <th class="p-4 font-semibold text-stone-700">Category</th>
+                                <th class="p-4 font-semibold text-stone-700">Requirement</th>
+                                <th class="p-4 font-semibold text-stone-700">Priority</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-stone-200">
+                            <tr class="hover:bg-stone-50">
+                                <td class="p-4 font-medium">Performance</td>
+                                <td class="p-4 text-stone-700">API response times for core actions must be under 500ms.</td>
+                                <td class="p-4"><span class="text-red-700 bg-red-100 px-3 py-1 rounded-full text-sm font-medium">High</span></td>
+                            </tr>
+                            <tr class="hover:bg-stone-50">
+                                <td class="p-4 font-medium">Security</td>
+                                <td class="p-4 text-stone-700">All data transmission must use HTTPS/SSL. Credentials must be securely hashed.</td>
+                                <td class="p-4"><span class="text-red-700 bg-red-100 px-3 py-1 rounded-full text-sm font-medium">Critical</span></td>
+                            </tr>
+                            <tr class="hover:bg-stone-50">
+                                <td class="p-4 font-medium">Scalability</td>
+                                <td class="p-4 text-stone-700">Handle 10,000 active users and 5,000 concurrent shipments.</td>
+                                <td class="p-4"><span class="text-red-700 bg-red-100 px-3 py-1 rounded-full text-sm font-medium">High</span></td>
+                            </tr>
+                            <tr class="hover:bg-stone-50">
+                                <td class="p-4 font-medium">Mobile UX</td>
+                                <td class="p-4 text-stone-700">Clean, intuitive UI with large touch targets and good contrast.</td>
+                                <td class="p-4"><span class="text-red-700 bg-red-100 px-3 py-1 rounded-full text-sm font-medium">High</span></td>
+                            </tr>
+                            <tr class="hover:bg-stone-50">
+                                <td class="p-4 font-medium">Reliability</td>
+                                <td class="p-4 text-stone-700">Shipment tracking and status updates must be near real-time and fault-tolerant.</td>
+                                <td class="p-4"><span class="text-red-700 bg-red-100 px-3 py-1 rounded-full text-sm font-medium">High</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section id="tech" class="mb-16">
+                <h2 class="section-header">Tech & Deployment Notes</h2>
+                <p class="section-intro">This section details the technical stack and deployment strategy, including our database choice, authentication method, and how the mobile applications will be delivered.</p>
+                <div class="grid md:grid-cols-2 gap-6">
+                    <div class="bg-white p-6 rounded-lg shadow-md border border-stone-100">
+                        <h3 class="text-xl font-semibold text-stone-800 mb-3">Hosting & Backend</h3>
+                        <ul class="list-disc list-inside space-y-2 text-stone-700">
+                            <li><strong>Deployment:</strong> GitHub Pages (or similar).</li>
+                            <li><strong>Database:</strong> Firestore for real-time data sync.</li>
+                            <li><strong>Authentication:</strong> Firebase Authentication.</li>
+                            <li><strong>APIs:</strong> RESTful principles or Firebase SDK.</li>
+                        </ul>
+                    </div>
+                    <div class="bg-white p-6 rounded-lg shadow-md border border-stone-100">
+                        <h3 class="text-xl font-semibold text-stone-800 mb-3">Mobile Application Delivery</h3>
+                        <ul class="list-disc list-inside space-y-2 text-stone-700">
+                            <li><strong>Development:</strong> Simulated in a single-file environment (e.g., responsive HTML/JS).</li>
+                            <li><strong>APK Simulation:</strong> App will check user role on login and render the correct UI (Partner vs. Agent).</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <section id="kpis" class="mb-16">
+                <h2 class="section-header">Success Metrics (KPIs)</h2>
+                <p class="section-intro">This section defines how we will measure the success of the Corelynx platform. These Key Performance Indicators (KPIs) are directly tied to our product goals. The charts visualize our primary targets.</p>
+                <div class="grid md:grid-cols-2 gap-8">
+                    <div class="bg-white p-6 rounded-lg shadow-md border border-stone-100">
+                        <h3 class="text-lg font-semibold text-stone-800">Agent Acceptance Rate</h3>
+                        <p class="text-3xl font-bold text-teal-700 my-2">> 85%</p>
+                        <p class="text-sm text-stone-600 mb-4">Measures job relevance and Agent satisfaction.</p>
+                        <div class="kpi-chart-container">
+                            <canvas id="kpiChart1"></canvas>
+                        </div>
+                    </div>
+                    <div class="bg-white p-6 rounded-lg shadow-md border border-stone-100">
+                        <h3 class="text-lg font-semibold text-stone-800">Median Completion Time</h3>
+                        <p class="text-3xl font-bold text-teal-700 my-2">< 48 hours</p>
+                        <p class="text-sm text-stone-600 mb-4">Measures overall logistics efficiency.</p>
+                    </div>
+                    <div class="bg-white p-6 rounded-lg shadow-md border border-stone-100">
+                        <h3 class="text-lg font-semibold text-stone-800">User Retention Rate</h3>
+                        <p class="text-3xl font-bold text-teal-700 my-2">> 70%</p>
+                        <p class="text-sm text-stone-600 mb-4">Percentage of active Partners/Agents each month.</p>
+                        <div class="kpi-chart-container">
+                            <canvas id="kpiChart2"></canvas>
+                        </div>
+                    </div>
+                    <div class="bg-white p-6 rounded-lg shadow-md border border-stone-100">
+                        <h3 class="text-lg font-semibold text-stone-800">Cost Variance</h3>
+                        <p class="text-3xl font-bold text-teal-700 my-2">< 10%</p>
+                        <p class="text-sm text-stone-600 mb-4">Measures pricing accuracy and transparency.</p>
+                        <div class="kpi-chart-container">
+                            <canvas id="kpiChart3"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+
+            const storyData = [
+                { id: 'A.1', category: 'auth', story: "As a new user, I want to sign up and be assigned either the 'Partner' or 'Logistics Agent' role.", detail: "Web Portal registration must include role selection, and Agent accounts require Admin approval before activation." },
+                { id: 'A.2', category: 'auth', story: "As a user, I want to log in to the secure Web Portal using my credentials.", detail: "Web Portal must offer a clear, secure login page." },
+                { id: 'A.3', category: 'auth', story: "As a user, I want my role to be clearly displayed immediately after login.", detail: "Post-login, display a dashboard relevant to the user's role." },
+                { id: 'A.4', category: 'auth', story: "As a user, I want to see a clear link/QR code to download the *correct* mobile APK for my assigned role.", detail: "The dashboard must dynamically display the download link for APK A (Partner) or APK B (Agent)." },
+                { id: 'A.5', category: 'auth', story: "As an Admin, I want to manage all user accounts (approve Agents, suspend accounts, change roles).", detail: "Admin dashboard access required for full user lifecycle management." },
+                
+                { id: 'P.1', category: 'partner', story: "As a Partner, I want to create a new shipment by providing key details.", detail: "<strong>Required Fields:</strong> Origin (Address/GPS), Destination (Address/GPS), Cargo Type/Weight/Dimensions, Required Pickup/Delivery Dates." },
+                { id: 'P.2', category: 'partner', story: "As a Partner, I want the system to automatically filter and present available Agents based on the shipment's geographical region.", detail: "Agents must be filtered by the region defined by the Origin/Destination and Agent's declared operating region." },
+                { id: 'P.3', category: 'partner', story: "As a Partner, I want to select one or more preferred Agents from the filtered list to receive the shipment offer.", detail: "Allow Partner to select up to 5 agents for a primary bid invitation." },
+                { id: 'P.4', category: 'partner', story: "As a Partner, I want to view a basic profile for each available Agent (e.g., Rating, Completion Rate, Vehicle Type).", detail: "Agent selection screen must show relevant performance metrics." },
+                { id: 'P.5', category: 'partner', story: "As a Partner, I want to track the real-time status of my active shipments (Pending, Accepted, In Transit, Delivered).", detail: "Status updates must be received from the Agent App (APK B) and reflected immediately." },
+                { id: 'P.6', category: 'partner', story: "As a Partner, I want to receive notifications when an Agent accepts, declines, or raises the cost of my shipment.", detail: "Push notifications must alert the Partner to key workflow changes." },
+                { id: 'P.7', category: 'partner', story: "As a Partner, I want to view a map showing the last known location of the shipment while it is 'In Transit'.", detail: "Requires GPS integration from the Agent App." },
+                { id: 'P.8', category: 'partner', story: "As a Partner, I want to generate a <strong>Cost Report</strong> showing total expenditure per time period (monthly/quarterly).", detail: "Report should include original quote vs. final cost and be exportable (CSV/PDF)." },
+                { id: 'P.9', category: 'partner', story: "As a Partner, I want to generate a <strong>Completion Time Report</strong> showing average and median time from pickup to delivery.", detail: "Filterable by Agent and cargo type." },
+                { id: 'P.10', category: 'partner', story: "As a Partner, I want to view a <strong>Usage Report</strong> detailing which Agents I used most frequently.", detail: "This report helps inform future Agent selection (P.4)." },
+                
+                { id: 'L.1', category: 'agent', story: "As a Logistics Agent, I only want to see shipment offers relevant to my declared operating region.", detail: "The job feed must be strictly filtered by the Agent's configured region." },
+                { id: 'L.2', category: 'agent', story: "As a Logistics Agent, I want to see a clear, structured list of all pending shipment offers.", detail: "Each job card must display: Origin, Destination, Cargo Type, Partner's Requested Cost." },
+                { id: 'L.3', category: 'agent', story: "As a Logistics Agent, I want to accept a shipment offer with a single confirmation action.", detail: "Upon acceptance, the shipment status is updated to 'Accepted'." },
+                { id: 'L.4', category: 'agent', story: "As a Logistics Agent, I want to decline a shipment offer with an optional short reason code.", detail: "Upon decline, the offer is removed from the Agent's feed and the Partner is notified." },
+                { id: 'L.5', category: 'agent', story: "As a Logistics Agent, I want to raise the cost for a shipment before accepting it.", detail: "A structured flow must allow the Agent to propose a new cost, which requires the Partner's re-acceptance." },
+                { id: 'L.6', category: 'agent', story: "As a Logistics Agent, I want to easily update the status of an accepted job ('Picked Up', 'In Transit', 'Delivered').", detail: "Requires simple, large buttons for status updates." },
+                { id: 'L.7', category: 'agent', story: "As a Logistics Agent, I want the app to automatically transmit my location to the Partner when 'In Transit'.", detail: "Must use GPS/Location Services permissions when job is active." },
+                { id: 'L.8', category: 'agent', story: "As a Logistics Agent, I want to capture digital proof of delivery (signature or photo) upon completion.", detail: "Delivered status requires an electronic signature/photo confirmation." }
+            ];
+
+            const storiesContainer = document.getElementById('stories-container');
+            
+            function renderStories(filter = 'all') {
+                storiesContainer.innerHTML = '';
+                const filteredStories = filter === 'all' ? storyData : storyData.filter(s => s.category === filter);
+                
+                filteredStories.forEach(story => {
+                    const card = document.createElement('div');
+                    card.className = 'story-card';
+                    card.innerHTML = `
+                        <div class="story-card-header">
+                            <span class="story-card-id">${story.id}</span>
+                        </div>
+                        <div class="story-card-body">
+                            <p class="font-medium mb-2">${story.story}</p>
+                            <p class="text-sm text-stone-600">${story.detail}</p>
+                        </div>
+                    `;
+                    storiesContainer.appendChild(card);
+                });
+            }
+
+            function setupFilters() {
+                const filterButtons = document.querySelectorAll('.filter-btn');
+                filterButtons.forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        filterButtons.forEach(b => b.classList.remove('active', 'bg-teal-600', 'text-white'));
+                        filterButtons.forEach(b => b.classList.add('bg-white', 'text-stone-700', 'border', 'border-stone-200'));
+                        
+                        btn.classList.add('active', 'bg-teal-600', 'text-white');
+                        btn.classList.remove('bg-white', 'text-stone-700', 'border', 'border-stone-200');
+                        
+                        renderStories(btn.dataset.filter);
+                    });
+                });
+            }
+
+            function initDonutChart() {
+                const ctx = document.getElementById('storyDonutChart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Auth & Web', 'Partner Stories', 'Agent Stories'],
+                        datasets: [{
+                            label: 'User Story Distribution',
+                            data: [
+                                storyData.filter(s => s.category === 'auth').length,
+                                storyData.filter(s => s.category === 'partner').length,
+                                storyData.filter(s => s.category === 'agent').length
+                            ],
+                            backgroundColor: [
+                                '#0d9488', 
+                                '#0f766e', 
+                                '#14b8a6', 
+                            ],
+                            borderColor: '#f8f7f6',
+                            borderWidth: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: {
+                                    font: { size: 14, family: 'Inter' }
+                                }
+                            },
+                            tooltip: {
+                                enabled: true
+                            }
+                        }
+                    }
+                });
+            }
+
+            function createKpiChart(canvasId, label, dataValue, maxValue = 100, color = '#0d9488') {
+                const ctx = document.getElementById(canvasId).getContext('2d');
+                new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: [label],
+                        datasets: [{
+                            label: 'Target',
+                            data: [dataValue],
+                            backgroundColor: color,
+                            borderRadius: 4,
+                        },
+                        {
+                            label: 'Max',
+                            data: [maxValue - dataValue],
+                            backgroundColor: '#e8e5e1',
+                            borderRadius: 4,
+                        }]
+                    },
+                    options: {
+                        indexAxis: 'y',
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            x: {
+                                stacked: true,
+                                display: false,
+                                max: maxValue
+                            },
+                            y: {
+                                stacked: true,
+                                display: false
+                            }
+                        },
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                enabled: true,
+                                callbacks: {
+                                    label: (context) => {
+                                        if (context.datasetIndex === 0) return ` Target: ${context.raw}`;
+                                        return null;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            function initKpiCharts() {
+                createKpiChart('kpiChart1', 'Acceptance Rate', 85, 100);
+                createKpiChart('kpiChart2', 'Retention Rate', 70, 100);
+                createKpiChart('kpiChart3', 'Cost Variance', 10, 100, '#f97316');
+            }
+            
+            function setupNavScrollSpy() {
+                const sections = document.querySelectorAll('section');
+                const navLinks = document.querySelectorAll('#navigation a');
+
+                const observer = new IntersectionObserver((entries) => {
+                    entries.forEach(entry => {
+                        if (entry.isIntersecting) {
+                            navLinks.forEach(link => {
+                                link.classList.remove('active');
+                                if (link.getAttribute('href') === `#${entry.target.id}`) {
+                                    link.classList.add('active');
+                                }
+                            });
+                        }
+                    });
+                }, { rootMargin: '-30% 0px -70% 0px', threshold: 0 });
+
+                sections.forEach(section => observer.observe(section));
+            }
+
+            renderStories('all');
+            setupFilters();
+            initDonutChart();
+            initKpiCharts();
+            setupNavScrollSpy();
+        });
+    </script>
+</body>
+</html>
